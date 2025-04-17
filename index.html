@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pathfinder 1e Combat Dashboard</title> <style>
+        /* Import Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Alegreya+SC:wght@400;700&display=swap');
+
+        :root {
+            /* --- Fantasy Theme Configuration --- */
+            --bg-color: #f5e5c7; /* Parchment background */
+            --card-bg: #e8d8b8; /* Slightly darker card */
+            --card-border-color: #8b4513; /* SaddleBrown */
+            --text-color: #3a2a1a; /* Dark Brown */
+            --heading-color: #6b2a1a; /* Dark Red/Brown */
+            --primary-accent: #a0522d; /* Sienna */
+            --secondary-accent: #cd853f; /* Peru */
+            --input-bg: #f5f0e6; /* Lighter parchment for inputs */
+            --input-border: var(--secondary-accent);
+            --disabled-color: #888888; /* Grey for disabled/dead text */
+            --dying-color: #b22222; /* Firebrick Red */
+            --dead-color: #555555; /* Dark Grey */
+
+            /* HP Gradient */
+            --hp-full-color: #228b22; /* ForestGreen */
+            --hp-mid-color: #daa520; /* Goldenrod */
+            --hp-low-color: #b22222; /* Firebrick Red */
+            --hp-bar-bg: #c8b898; /* Muted bg for the bar track */
+
+            /* Conditions */
+            --condition-active-border: var(--primary-accent);
+            --condition-active-bg: #c8b898; /* Muted bg */
+            --condition-active-text: var(--heading-color);
+
+            /* Fonts */
+            --font-heading: 'Cinzel', serif;
+            --font-body: 'Alegreya SC', serif;
+
+            --text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+            /* --- End Theme --- */
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0; padding: 20px; font-size: 16px;
+            line-height: 1.5;
+        }
+        .main-controls { text-align: center; margin-bottom: 30px; }
+        .main-controls button {
+            font-family: var(--font-heading);
+            background-color: var(--primary-accent); color: var(--bg-color);
+            border: 1px solid var(--card-border-color);
+            font-size: 1.1em; padding: 8px 20px; border-radius: 5px;
+            cursor: pointer; text-transform: uppercase; margin: 0 10px;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+            transition: background-color 0.2s ease;
+        }
+        .main-controls button:hover { background-color: var(--heading-color); border-color: #5a1a0a; }
+        .main-controls button:active { transform: translateY(1px); box-shadow: none; }
+
+        h1 {
+            font-family: var(--font-heading); color: var(--heading-color);
+            text-align: center; letter-spacing: 1px; text-transform: uppercase;
+            margin-bottom: 20px; font-weight: 700;
+        }
+        .dashboard-container { padding: 0 20px 20px 20px; max-width: 1600px; margin: 0 auto;}
+        .dashboard { display: flex; flex-wrap: wrap; gap: 30px; justify-content: center; }
+
+        .character-card {
+            border: 2px solid var(--card-border-color);
+            background-color: var(--card-bg);
+            padding: 15px; border-radius: 8px;
+            width: 360px;
+            box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
+            display: flex; flex-direction: column;
+            color: var(--text-color);
+            position: relative;
+            transition: border-color 0.3s ease, opacity 0.3s ease;
+        }
+
+        /* Remove Button Styling */
+        .remove-button {
+            position: absolute; top: 5px; right: 5px;
+            background-color: #a0522d; color: #fff; border: 1px solid #6b2a1a;
+            border-radius: 50%; width: 24px; height: 24px;
+            font-size: 14px; font-weight: bold; line-height: 22px;
+            text-align: center; cursor: pointer; padding: 0;
+            box-shadow: 1px 1px 2px rgba(0,0,0,0.3); z-index: 10;
+        }
+        .remove-button:hover { background-color: #b22222; color: white; }
+
+        /* Card Header */
+        .card-header {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed var(--secondary-accent);
+        }
+        .header-top { /* Name and Status */
+             display: flex; justify-content: space-between; align-items: flex-start;
+             margin-bottom: 8px; min-height: 40px;
+        }
+        .name-section { flex-grow: 1; margin-right: 10px; }
+        .char-name-display {
+            font-family: var(--font-heading); font-size: 1.7em; font-weight: 700;
+            color: var(--heading-color); cursor: pointer;
+            line-height: 1.2; display: inline-block; max-width: 100%;
+        }
+        .char-name-edit {
+            display: none; background-color: var(--input-bg); border: 1px solid var(--input-border);
+            color: var(--text-color); font-family: var(--font-heading); font-size: 1.7em;
+            font-weight: 700; padding: 2px 5px; width: 95%;
+            box-sizing: border-box; outline: none; border-radius: 3px;
+        }
+        .status-overlay {
+            background-color: rgba(0,0,0,0.1); padding: 3px 8px; border-radius: 4px;
+            font-size: 0.95em; font-weight: bold; color: var(--heading-color);
+            text-transform: uppercase; white-space: nowrap; text-align: right;
+            align-self: flex-start; flex-shrink: 0;
+        }
+         .status-overlay.status-dying { color: var(--bg-color); background-color: var(--dying-color);}
+         .status-overlay.status-disabled { color: var(--dying-color); background: transparent; border: 1px solid var(--dying-color); }
+         .status-overlay.status-dead { color: var(--bg-color); background-color: var(--dead-color); }
+
+        .header-middle { /* Type Selector */
+            margin-bottom: 10px; display: flex; align-items: center; gap: 5px;
+        }
+        .header-middle label {
+            font-size: 0.85em; text-transform: uppercase; color: var(--primary-accent);
+        }
+        .type-select {
+            background-color: var(--input-bg); color: var(--text-color);
+            border: 1px solid var(--input-border); border-radius: 3px;
+            font-family: var(--font-body); font-size: 0.9em; padding: 2px 4px;
+            font-weight: 700; flex-grow: 0;
+        }
+        .type-select:focus { outline: none; border-color: var(--primary-accent); }
+
+        /* HP Gradient Bar Styles */
+        .hp-gradient-container {
+            height: 12px; width: 100%; margin: 0 auto; position: relative;
+            background-color: var(--hp-bar-bg); border-radius: 3px;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .hp-gradient-bar { position: absolute; top: 0; left: 0; bottom: 0; height: 100%; border-radius: 3px; background: linear-gradient(to right, var(--hp-low-color) 0%, var(--hp-mid-color) 50%, var(--hp-full-color) 100%); width: 100%; z-index: 1; }
+        .hp-gradient-mask { position: absolute; top: 0; right: 0; bottom: 0; height: 100%; background-color: var(--hp-bar-bg); width: 0%; z-index: 2; transition: width 0.3s ease-out; border-radius: 0 3px 3px 0; }
+
+
+        /* Section Dividers */
+        .section-divider {
+            padding-top: 10px; margin-top: 10px;
+            border-top: 1px dashed var(--secondary-accent);
+        }
+
+        /* HP Controls Area */
+        .hp-controls {
+            display: flex; flex-direction: column;
+            align-items: center; gap: 10px;
+            margin-top: 15px;
+        }
+        .hp-adjust { /* Label and buttons */
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 5px;
+        }
+        .hp-adjust label {
+             font-family: var(--font-heading); font-size: 1.1em;
+             color: var(--primary-accent); margin: 0 5px;
+        }
+        .hp-adjust button {
+            width: 35px; height: 30px; padding: 0; font-size: 1.4em; line-height: 1;
+            cursor: pointer; background-color: var(--input-bg); color: var(--text-color);
+            border: 1px solid var(--input-border); border-radius: 4px;
+        }
+        .hp-inputs-wrapper { /* Current and Max inputs */
+             display: flex; justify-content: center; gap: 15px; width: 100%;
+        }
+        .hp-input-group { display: flex; flex-direction: column; align-items: center; font-size: 0.9em;}
+        .hp-input-group label { margin-bottom: 2px; text-transform: uppercase; font-size: 0.85em;}
+        .hp-input-group input {
+            width: 70px; text-align: center; padding: 4px 4px;
+            background-color: var(--input-bg); color: var(--text-color);
+            border: 1px solid var(--input-border); border-radius: 3px;
+            font-family: var(--font-body); font-size: 1.1em; font-weight: 700;
+            -moz-appearance: textfield;
+        }
+        .hp-input-group input::-webkit-inner-spin-button,
+        .hp-input-group input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+
+        /* Info Grid */
+        .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 15px; align-items: start; }
+        .info-grid .stat-item { display: flex; flex-direction: column; align-items: center; }
+        .info-grid .stat-item label {
+             font-weight: normal; color: var(--primary-accent); font-size: 0.8em;
+             text-transform: uppercase; margin-bottom: 2px;
+        }
+        .info-grid .stat-item input[type="number"],
+        .info-grid .stat-item input[type="text"] {
+            width: 90%; text-align: center; padding: 4px;
+            background-color: var(--input-bg); color: var(--text-color);
+            border: 1px solid var(--input-border); border-radius: 3px;
+            font-family: var(--font-body); font-size: 1em; font-weight: 700;
+            box-sizing: border-box; -moz-appearance: textfield;
+        }
+        .info-grid input[type=number]::-webkit-inner-spin-button,
+        .info-grid input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* Specific Item Spanning / Grouping */
+        .info-grid .init-item { grid-column: 1 / -1; }
+        .info-grid .init-item input { width: 50% !important; margin: 0 auto;}
+
+
+        /* Condition Panel */
+        .condition-panel { display: flex; flex-direction: column; gap: 10px; }
+        .condition-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }
+        .condition-toggle {
+             padding: 4px 6px; font-size: 0.9em; border-width: 1px;
+             background-color: var(--input-bg); color: var(--text-color);
+             border: 1px solid var(--input-border); font-family: var(--font-body);
+             border-radius: 4px; cursor: pointer; text-transform: capitalize;
+             text-align: center; box-sizing: border-box; opacity: 0.8;
+             transition: all 0.2s ease;
+        }
+        .condition-toggle:hover { border-color: var(--primary-accent); opacity: 1; }
+        .condition-toggle.condition-active {
+             border-color: var(--condition-active-border); color: var(--condition-active-text);
+             background-color: var(--condition-active-bg); opacity: 1.0; font-weight: bold;
+             box-shadow: inset 0 0 3px rgba(0,0,0,0.2);
+        }
+
+        /* Action Buttons */
+        .action-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
+         .action-buttons button {
+             font-family: var(--font-body); background-color: var(--input-bg);
+             color: var(--text-color); border: 1px solid var(--input-border);
+             font-size: 0.9em; padding: 5px 10px; border-radius: 4px;
+             cursor: pointer; text-transform: uppercase; text-align: center;
+             transition: all 0.2s ease;
+         }
+        .action-buttons button:hover:not(:disabled) { background-color: var(--secondary-accent); color: var(--bg-color); border-color: var(--primary-accent); }
+        .action-buttons button.mark-dead-btn:hover:not(:disabled) { background-color: var(--dead-color); color: white; border-color: black; }
+        .action-buttons button.unmark-dead-btn { background-color: var(--hp-full-color); color: white; border-color: #1a6f1a; }
+        .action-buttons button.unmark-dead-btn:hover:not(:disabled) { background-color: #3aa33a; }
+
+        /* Hide Unmark Dead button unless character is dead */
+        .character-card:not(.status-dead) .unmark-dead-btn { display: none; }
+        /* Hide Mark Dead button if character is already dead */
+        .character-card.status-dead .mark-dead-btn { display: none; }
+
+
+        /* Notes Area */
+        .notes-area { margin-top: 8px; }
+        .notes-area textarea {
+            width: 100%; box-sizing: border-box; min-height: 50px; resize: vertical;
+            background-color: var(--input-bg); color: var(--text-color);
+            border: 1px solid var(--input-border); border-radius: 3px;
+            font-family: var(--font-body); font-size: 1em; padding: 5px;
+            line-height: 1.4;
+        }
+        .notes-area textarea:focus { outline: none; border-color: var(--primary-accent); }
+
+
+        /* --- Status-Specific Styling --- */
+        /* Visual indication for disabled/dying */
+        .character-card.status-disabled { border-color: var(--dying-color); }
+        .character-card.status-dying { border-color: var(--dying-color); }
+        /* Styling for Dead status */
+        .character-card.status-dead {
+            border-color: var(--dead-color);
+            box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4); opacity: 0.75;
+            background-color: #d8c8a8; /* Faded card bg */
+        }
+
+        /* --- Input Disabling --- */
+        /* Only disable inputs/buttons when DEAD, allowing Revive & Remove */
+        .character-card.status-dead input,
+        .character-card.status-dead select,
+        .character-card.status-dead textarea,
+        .character-card.status-dead .condition-toggle,
+        .character-card.status-dead button:not(.remove-button):not(.unmark-dead-btn) {
+             pointer-events: none !important;
+             opacity: 0.6;
+             background-color: #e0e0e0 !important;
+        }
+        .character-card.status-dead .char-name-display { cursor: default; }
+        .character-card.status-dead .status-overlay { background-color: var(--dead-color); color: #fff;}
+
+        /* Generic disabled style for buttons if JS disables them */
+        button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #ccc !important; border-color: #aaa !important; color: #888 !important; }
+        input:disabled { background-color: #eee !important; opacity: 0.7; cursor: not-allowed; } /* Style if JS disables an input for some reason */
+
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <h1>Pathfinder 1e Combat Dashboard</h1> <div class="main-controls">
+        <button onclick="addCombatant()">Add Combatant</button>
+    </div>
+    <div class="dashboard" id="dashboard">
+        </div>
+</div>
+
+<script>
+    // --- PF1e Condition List ---
+    const commonConditions = [
+        "Blinded", "Confused", "Dazed", "Deafened", "Entangled", "Exhausted", "Fatigued",
+        "Frightened", "Grappled", "Helpless", "Invisible", "Nauseated", "Panicked",
+        "Paralyzed", "Petrified", "Pinned", "Prone", "Shaken", "Sickened",
+        "Staggered", "Stunned"
+    ];
+
+    // --- Character Data Store --- (CON Score added back)
+    let characters = {
+        char1: {
+            name: "Valeros", hpMax: 15, hpCurrent: 15, initiative: 12, type: 'PC', conScore: 14,
+            ac: 18, acFlatFooted: 16, acTouch: 12,
+            fortSave: 5, refSave: 2, willSave: 1, perception: 5, speed: "30 ft",
+            cmbValue: 3, cmdValue: 15,
+            pf1eConditions: [], notes: "Standard Sword & Board",
+            status: "Healthy", displayStatus: "Healthy"
+        },
+        npc1: {
+            name: "Town Guard", hpMax: 11, hpCurrent: 0, initiative: 8, type: 'NPC', conScore: 12,
+            ac: 15, acFlatFooted: 14, acTouch: 11,
+            fortSave: 4, refSave: 1, willSave: 0, perception: 6, speed: "30 ft",
+            cmbValue: 2, cmdValue: 13,
+            pf1eConditions: [], notes: "",
+            status: "Disabled", displayStatus: "Disabled (0 HP)"
+        },
+        goblin1: {
+            name: "Goblin", hpMax: 6, hpCurrent: -5, initiative: 6, type: 'Creature', conScore: 10,
+            ac: 14, acFlatFooted: 13, acTouch: 11,
+            fortSave: 3, refSave: 3, willSave: -1, perception: -1, speed: "30 ft",
+            cmbValue: -1, cmdValue: 9,
+            pf1eConditions: ["Sickened", "Unconscious", "Helpless"],
+            notes: "Shortbow",
+            status: "Dying", displayStatus: "Dying (-5 HP)"
+        },
+    };
+    let nextCombatantIdCounter = Object.keys(characters).length + 1;
+
+    // --- Functions ---
+
+    function generateNewCombatantId() {
+        let newId;
+        do { newId = `combatant${nextCombatantIdCounter++}`; } while (characters[newId]);
+        return newId;
+    }
+
+    function addCombatant() {
+        const newId = generateNewCombatantId();
+        characters[newId] = {
+            name: "New Creature", hpMax: 10, hpCurrent: 10, initiative: 10, type: 'Creature', conScore: 10,
+            ac: 15, acFlatFooted: 15, acTouch: 10,
+            fortSave: 2, refSave: 2, willSave: 0, perception: 0, speed: "30 ft",
+            cmbValue: 0, cmdValue: 10,
+            pf1eConditions: [], notes: "",
+            status: "Healthy", displayStatus: "Healthy"
+         };
+        renderDashboard();
+    }
+
+    function removeCombatant(charId) {
+        const c = characters[charId];
+        if (!c) return;
+        if (confirm(`Remove ${c.name}?`)) {
+            delete characters[charId];
+            renderDashboard();
+        }
+    }
+
+    function showNameInput(charId, inputId, displayId) {
+        const inputElement = document.getElementById(inputId);
+        const displayElement = document.getElementById(displayId);
+        if (!inputElement || !displayElement) return;
+        inputElement.value = characters[charId].name;
+        displayElement.style.display = 'none';
+        inputElement.style.display = 'inline-block';
+        inputElement.focus();
+        inputElement.select();
+    }
+
+    function hideNameInput(charId, inputId, displayId, save) {
+        const inputElement = document.getElementById(inputId);
+        const displayElement = document.getElementById(displayId);
+        if (!inputElement || !displayElement) return;
+        inputElement.style.display = 'none';
+        displayElement.style.display = 'inline-block';
+        if (save && inputElement.value.trim() !== characters[charId].name ) {
+            updateStatus(charId, 'setName', inputElement.value.trim());
+        } else {
+             displayElement.textContent = characters[charId].name;
+        }
+    }
+
+
+    function renderCharacterCard(charId) {
+        const character = characters[charId];
+        const card = document.getElementById(charId);
+        if (!character || !card) return;
+
+        // Update Status Class for Border/Opacity
+        const statuses = ['healthy', 'injured', 'disabled', 'dying', 'dead'];
+        statuses.forEach(s => card.classList.remove(`status-${s}`));
+        if (character.status) {
+            card.classList.add(`status-${character.status.toLowerCase()}`);
+        }
+
+        // Update Header (Name, Status Overlay)
+        const nameDisplay = card.querySelector('.char-name-display');
+        const nameInput = card.querySelector('.char-name-edit');
+        if (nameDisplay && nameInput && document.activeElement !== nameInput) {
+            nameDisplay.textContent = character.name;
+            nameInput.value = character.name;
+            nameDisplay.style.display = 'inline-block';
+            nameInput.style.display = 'none';
+        } else if (nameDisplay && nameInput && document.activeElement === nameInput) {
+            nameDisplay.style.display = 'none';
+        }
+
+        const statusOverlay = card.querySelector('.status-overlay');
+        if(statusOverlay) {
+            statusOverlay.textContent = character.displayStatus;
+            statusOverlay.className = 'status-overlay'; // Reset classes
+            if (character.status) {
+                 statusOverlay.classList.add(`status-${character.status.toLowerCase()}`);
+            }
+        }
+        // Update Type Selector
+        const typeSelect = card.querySelector('.type-select');
+         if (typeSelect && document.activeElement !== typeSelect) typeSelect.value = character.type;
+
+
+        // Update HP Inputs
+        const maxHpInput = card.querySelector('.input-hp-max');
+        if (maxHpInput && document.activeElement !== maxHpInput) maxHpInput.value = character.hpMax;
+        const currentHpInput = card.querySelector('.input-hp-current');
+        if (currentHpInput && document.activeElement !== currentHpInput) currentHpInput.value = character.hpCurrent;
+
+         // Update Info Grid Inputs (CON added back)
+         const fieldsToUpdate = ['initiative', 'ac', 'acFlatFooted', 'acTouch', 'fortSave', 'refSave', 'willSave', 'perception', 'speed', 'cmbValue', 'cmdValue', 'conScore'];
+         fieldsToUpdate.forEach(field => {
+             const inputElement = card.querySelector(`.input-${field.toLowerCase()}`);
+             if (inputElement && document.activeElement !== inputElement) {
+                 inputElement.value = character[field] ?? (field.startsWith('ac') || field === 'cmdValue' || field === 'conScore' ? 10 : 0);
+                 if (field === 'speed') inputElement.value = character[field] ?? '30 ft';
+             } else if (!inputElement) {
+                  console.warn(`Input element not found for field: ${field} with selector .input-${field.toLowerCase()}`);
+             }
+         });
+
+        // Update HP Gradient Bar Mask
+        const hpPercent = character.hpMax > 0 ? Math.max(0, (character.hpCurrent / character.hpMax) * 100) : 0;
+        const maskElement = card.querySelector('.hp-gradient-mask');
+        if (maskElement) {
+             maskElement.style.width = `${100 - hpPercent}%`;
+        }
+
+         // Update Condition Toggles
+         commonConditions.forEach(condition => {
+             const btnIdSuffix = condition.toLowerCase().replace(/[\s/-]+/g, '-');
+             const conditionButton = card.querySelector(`#cond-${btnIdSuffix}-${charId}`);
+             if (conditionButton) {
+                 conditionButton.classList.toggle('condition-active', character.pf1eConditions.includes(condition));
+             }
+         });
+
+         // Update Notes
+          const notesArea = card.querySelector('.notes-textarea');
+          if (notesArea && document.activeElement !== notesArea) {
+              notesArea.value = character.notes;
+          }
+    }
+
+     function createCharacterCardElement(charId) {
+         const character = characters[charId];
+         if (!character) return null;
+
+         const card = document.createElement('div');
+         card.className = 'character-card';
+         card.id = charId;
+
+         const nameDisplayId = `name-display-${charId}`;
+         const nameInputId = `name-edit-${charId}`;
+         const typeSelectId = `type-${charId}`;
+
+         // Generate Condition Toggle Buttons
+         let conditionButtonsHTML = commonConditions.map(condition => {
+             const btnIdSuffix = condition.toLowerCase().replace(/[\s/-]+/g, '-');
+             return `<button class="condition-toggle" id="cond-${btnIdSuffix}-${charId}" onclick="updateStatus('${charId}', 'toggleCondition', '${condition}')" title="Toggle ${condition}">${condition}</button>`;
+         }).join('');
+
+         // Card Inner HTML
+         card.innerHTML = `
+             <button class="remove-button" onclick="removeCombatant('${charId}')" title="Remove ${character.name}">X</button>
+
+             <div class="card-header">
+                 <div class="header-top">
+                     <div class="name-section">
+                         <span class="char-name-display" id="${nameDisplayId}" onclick="showNameInput('${charId}', '${nameInputId}', '${nameDisplayId}')" title="Click to edit name">${character.name}</span>
+                         <input type="text" class="char-name-edit" id="${nameInputId}" value="${character.name}"
+                                onblur="hideNameInput('${charId}', '${nameInputId}', '${nameDisplayId}', true)"
+                                onkeydown="if(event.key === 'Enter') { this.blur(); } else if (event.key === 'Escape') { hideNameInput('${charId}', '${nameInputId}', '${nameDisplayId}', false); this.blur(); }"
+                                placeholder="ENTER NAME" style="display: none;">
+                     </div>
+                     <span class="status-overlay">${character.displayStatus}</span>
+                 </div>
+                 <div class="header-middle">
+                      <label for="${typeSelectId}">Type:</label>
+                      <select id="${typeSelectId}" class="type-select input-type" onchange="updateStatus('${charId}', 'setType', this.value)">
+                           <option value="PC" ${character.type === 'PC' ? 'selected' : ''}>PC</option>
+                           <option value="NPC" ${character.type === 'NPC' ? 'selected' : ''}>NPC</option>
+                           <option value="Creature" ${character.type === 'Creature' ? 'selected' : ''}>Creature</option>
+                       </select>
+                 </div>
+                 <div class="hp-gradient-container">
+                    <div class="hp-gradient-bar"></div>
+                    <div class="hp-gradient-mask" style="width: ${100 - (character.hpMax > 0 ? Math.max(0, (character.hpCurrent / character.hpMax) * 100) : 0)}%;"></div>
+                 </div>
+             </div>
+
+
+             <div class="hp-controls"> <div class="hp-adjust"> <button onclick="updateStatus('${charId}', 'decrementHp', 1)" title="Decrease HP by 1">-</button>
+                     <label>Hit Points</label> <button onclick="updateStatus('${charId}', 'incrementHp', 1)" title="Increase HP by 1">+</button>
+                 </div>
+                 <div class="hp-inputs-wrapper"> <div class="hp-input-group">
+                         <label for="current-hp-${charId}">Current</label>
+                         <input type="number" id="current-hp-${charId}" class="input-hp-current" value="${character.hpCurrent}" onchange="updateStatus('${charId}', 'setCurrentHp', this.value)">
+                     </div>
+                     <div class="hp-input-group">
+                         <label for="max-hp-${charId}">Max</label>
+                         <input type="number" id="max-hp-${charId}" class="input-hp-max" value="${character.hpMax}" min="1" onchange="updateStatus('${charId}', 'setMaxHp', this.value)">
+                     </div>
+                 </div>
+             </div>
+
+
+             <div class="info-grid section-divider">
+                  <div class="stat-item init-item">
+                      <label for="init-${charId}">Initiative</label>
+                      <input type="number" id="init-${charId}" class="input-initiative" value="${character.initiative}" onchange="updateStatus('${charId}', 'setInitiative', this.value)">
+                  </div>
+                  <div class="stat-item">
+                      <label for="ac-${charId}">AC</label>
+                      <input type="number" id="ac-${charId}" class="input-ac" value="${character.ac ?? 10}" min="0" onchange="updateStatus('${charId}', 'setAC', this.value)">
+                  </div>
+                  <div class="stat-item">
+                       <label for="acff-${charId}">Flat</label>
+                       <input type="number" id="acff-${charId}" class="input-acflatfooted" value="${character.acFlatFooted ?? 10}" min="0" title="Flat-Footed AC" onchange="updateStatus('${charId}', 'setAcFlatFooted', this.value)">
+                   </div>
+                   <div class="stat-item">
+                       <label for="actouch-${charId}">Touch</label>
+                       <input type="number" id="actouch-${charId}" class="input-actouch" value="${character.acTouch ?? 10}" min="0" title="Touch AC" onchange="updateStatus('${charId}', 'setAcTouch', this.value)">
+                   </div>
+                   <div class="stat-item">
+                      <label for="fort-${charId}">Fort</label>
+                      <input type="number" id="fort-${charId}" class="input-fortsave" value="${character.fortSave ?? 0}" onchange="updateStatus('${charId}', 'setFortSave', this.value)">
+                  </div>
+                  <div class="stat-item">
+                      <label for="ref-${charId}">Ref</label>
+                      <input type="number" id="ref-${charId}" class="input-refsave" value="${character.refSave ?? 0}" onchange="updateStatus('${charId}', 'setRefSave', this.value)">
+                  </div>
+                  <div class="stat-item">
+                      <label for="will-${charId}">Will</label>
+                      <input type="number" id="will-${charId}" class="input-willsave" value="${character.willSave ?? 0}" onchange="updateStatus('${charId}', 'setWillSave', this.value)">
+                  </div>
+                  <div class="stat-item">
+                       <label for="cmb-${charId}">CMB</label>
+                       <input type="number" id="cmb-${charId}" class="input-cmbvalue" value="${character.cmbValue ?? 0}" title="Combat Maneuver Bonus" onchange="updateStatus('${charId}', 'setCmbValue', this.value)">
+                   </div>
+                   <div class="stat-item">
+                       <label for="cmd-${charId}">CMD</label>
+                       <input type="number" id="cmd-${charId}" class="input-cmdvalue" value="${character.cmdValue ?? 10}" min="0" title="Combat Maneuver Defense" onchange="updateStatus('${charId}', 'setCmdValue', this.value)">
+                   </div>
+                   <div class="stat-item">
+                       <label for="con-${charId}">Con</label>
+                       <input type="number" id="con-${charId}" class="input-conscore" value="${character.conScore ?? 10}" min="1" title="Constitution Score (for Dying/Dead threshold)" onchange="updateStatus('${charId}', 'setConScore', this.value)">
+                   </div>
+                   <div class="stat-item">
+                       <label for="perc-${charId}">Perc</label>
+                       <input type="number" id="perc-${charId}" class="input-perception" value="${character.perception ?? 0}" title="Perception Modifier" onchange="updateStatus('${charId}', 'setPerception', this.value)">
+                   </div>
+                   <div class="stat-item">
+                       <label for="speed-${charId}">Speed</label>
+                       <input type="text" id="speed-${charId}" class="input-speed" value="${character.speed ?? '30 ft'}" onchange="updateStatus('${charId}', 'setSpeed', this.value)">
+                   </div>
+                   <div class="stat-item"></div> </div>
+
+              <div class="condition-panel section-divider">
+                  <div class="condition-grid">
+                      ${conditionButtonsHTML}
+                  </div>
+                  <div class="notes-area">
+                      <textarea class="notes-textarea" placeholder="Notes / Other Conditions..." onchange="updateStatus('${charId}', 'setNotes', this.value)">${character.notes ?? ''}</textarea>
+                  </div>
+                 <div class="action-buttons">
+                      <button class="mark-dead-btn" onclick="updateStatus('${charId}', 'setDead', true)" title="Mark character as Dead">Mark Dead</button>
+                      <button class="unmark-dead-btn" onclick="updateStatus('${charId}', 'unmarkDead', true)" title="Revive Character (sets HP to 0)">Revive</button>
+                 </div>
+              </div>
+         `;
+         return card;
+     }
+
+    function renderDashboard() {
+        const dashboardElement = document.getElementById('dashboard');
+        if (!dashboardElement) { console.error("Dashboard element not found!"); return; }
+
+        const activeElement = document.activeElement;
+        const activeElementId = activeElement ? activeElement.id : null;
+        const activeElementValue = (activeElement && typeof activeElement.value !== 'undefined') ? activeElement.value : null;
+        const activeElementSelectionStart = activeElement ? activeElement.selectionStart : null;
+        const activeElementSelectionEnd = activeElement ? activeElement.selectionEnd : null;
+
+        dashboardElement.innerHTML = '';
+
+        const sortedCharIds = Object.keys(characters).sort((a, b) => {
+            const initA = Number(characters[a]?.initiative) || 0;
+            const initB = Number(characters[b]?.initiative) || 0;
+            return initB - initA;
+        });
+
+        sortedCharIds.forEach(charId => {
+            const cardElement = createCharacterCardElement(charId);
+            if (cardElement) {
+                dashboardElement.appendChild(cardElement);
+                renderCharacterCard(charId);
+            }
+        });
+
+         if (activeElementId) {
+             const elementToRestoreFocus = document.getElementById(activeElementId);
+             if (elementToRestoreFocus) {
+                 elementToRestoreFocus.focus();
+                  if (elementToRestoreFocus.tagName === 'INPUT' || elementToRestoreFocus.tagName === 'TEXTAREA') {
+                      if (activeElementValue !== null && typeof elementToRestoreFocus.value !== 'undefined') { /* Value set by render */ }
+                      if (activeElementSelectionStart !== null && activeElementSelectionEnd !== null && typeof elementToRestoreFocus.setSelectionRange === 'function') {
+                         try { elementToRestoreFocus.setSelectionRange(activeElementSelectionStart, activeElementSelectionEnd); } catch (e) { /* Ignore */ }
+                      }
+                  }
+             }
+         }
+    }
+
+
+    function updateStatus(charId, action, value) {
+        const character = characters[charId];
+        if (!character) return;
+
+        // Actions allowed when dead
+        const alwaysAllowedActions = ['setName', 'setType', 'setNotes', 'setInitiative', 'setMaxHp', 'setAC', 'setAcFlatFooted', 'setAcTouch', 'setFortSave', 'setRefSave', 'setWillSave', 'setPerception', 'setSpeed', 'setCmbValue', 'setCmdValue', 'setConScore'];
+        const deadOnlyActions = ['unmarkDead'];
+
+        // Prevent actions if dead, unless specifically allowed or dead-only
+        if (character.status === 'Dead' && !alwaysAllowedActions.includes(action) && !deadOnlyActions.includes(action)) {
+            return; // Silently block
+        }
+        // No longer blocking actions based on Disabled/Dying status
+
+
+        let needsDashboardSort = false;
+        const previousHp = character.hpCurrent;
+        const previousStatus = character.status;
+
+        // Get CON Score for Death Threshold, default to 10 if missing/invalid
+        let conScore = parseInt(character.conScore, 10);
+        let validConScore = !isNaN(conScore) && conScore >= 1 ? conScore : 10;
+        let deathThreshold = -Math.abs(validConScore);
+
+        switch (action) {
+            // Basic Info
+            case 'setName': character.name = typeof value === 'string' ? value.trim() || "Unnamed" : "Unnamed"; break;
+            case 'setType': if (['PC', 'NPC', 'Creature'].includes(value)) { character.type = value; } break;
+            case 'setNotes': character.notes = typeof value === 'string' ? value : ""; break;
+
+            // HP and Max HP
+             case 'setMaxHp':
+                 const newMaxHp = parseInt(value, 10);
+                 if (!isNaN(newMaxHp) && newMaxHp >= 1) {
+                     character.hpMax = newMaxHp;
+                     if (character.hpCurrent > newMaxHp) { character.hpCurrent = newMaxHp; }
+                 }
+                 break;
+             case 'setCurrentHp':
+                 const newCurrentHp = parseInt(value, 10);
+                 if (!isNaN(newCurrentHp)) {
+                      character.hpCurrent = newCurrentHp > character.hpMax ? character.hpMax : newCurrentHp;
+                 }
+                 break;
+             case 'incrementHp':
+                  if (character.hpCurrent < character.hpMax) {
+                       character.hpCurrent = Math.min(character.hpMax, character.hpCurrent + 1);
+                  }
+                 break;
+             case 'decrementHp':
+                 character.hpCurrent = character.hpCurrent - 1;
+                 break;
+
+            // Core Stats (PF1e)
+             case 'setInitiative':
+                 const newInitiative = parseInt(value, 10);
+                 if (!isNaN(newInitiative)) { if (character.initiative !== newInitiative) { character.initiative = newInitiative; needsDashboardSort = true; } }
+                 break;
+            case 'setAC': character.ac = parseInt(value, 10) || 10; break;
+            case 'setAcFlatFooted': character.acFlatFooted = parseInt(value, 10) || 10; break;
+            case 'setAcTouch': character.acTouch = parseInt(value, 10) || 10; break;
+            case 'setFortSave': character.fortSave = parseInt(value, 10) || 0; break;
+            case 'setRefSave': character.refSave = parseInt(value, 10) || 0; break;
+            case 'setWillSave': character.willSave = parseInt(value, 10) || 0; break;
+            case 'setPerception': character.perception = parseInt(value, 10) || 0; break;
+            case 'setSpeed': character.speed = String(value) || "0 ft"; break;
+            case 'setCmbValue': character.cmbValue = parseInt(value, 10) || 0; break;
+            case 'setCmdValue': character.cmdValue = parseInt(value, 10) || 0; break;
+            case 'setConScore': // CON Score Logic
+                const newCon = parseInt(value, 10);
+                if (!isNaN(newCon) && newCon >= 1) {
+                    character.conScore = newCon;
+                    // Update local calculation variables immediately
+                    conScore = newCon;
+                    validConScore = newCon;
+                    deathThreshold = -Math.abs(validConScore);
+                    // Status will be recalculated below
+                } else { console.warn(`Invalid Constitution Score: ${value}`); }
+                break;
+
+
+             // Conditions (PF1e)
+             case 'toggleCondition':
+                 if (typeof value === 'string' && commonConditions.includes(value)) {
+                     const index = character.pf1eConditions.indexOf(value);
+                     if (index > -1) {
+                         character.pf1eConditions.splice(index, 1);
+                     } else {
+                        character.pf1eConditions.push(value);
+                        // Auto-add implied conditions
+                        if (value === 'Paralyzed' && !character.pf1eConditions.includes('Helpless')) { character.pf1eConditions.push('Helpless'); }
+                        if (value === 'Petrified' && !character.pf1eConditions.includes('Unconscious')) { character.pf1eConditions.push('Unconscious'); }
+                     }
+                 } else { console.warn(`Invalid or unknown condition: ${value}`); }
+                 break;
+
+             // Set Dead
+              case 'setDead':
+                  if (character.status !== 'Dead') {
+                      character.status = 'Dead';
+                      character.displayStatus = 'Dead';
+                      character.hpCurrent = Math.min(character.hpCurrent, deathThreshold);
+                      character.pf1eConditions = ['Dead'];
+                      console.log(`${character.name} is marked as Dead.`);
+                      if (needsDashboardSort) { renderDashboard(); } else { renderCharacterCard(charId); }
+                      return; // Skip recalculation
+                  }
+                  break;
+
+             // Unmark Dead
+             case 'unmarkDead':
+                 if (character.status === 'Dead') {
+                     character.hpCurrent = 0;
+                     const deadIndex = character.pf1eConditions.indexOf('Dead');
+                     if (deadIndex > -1) character.pf1eConditions.splice(deadIndex, 1);
+                     console.log(`${character.name} has been revived (set to 0 HP).`);
+                     // Let status recalculation handle the rest
+                 }
+                 break;
+        }
+
+        // --- Recalculate Status & Display Status (PF1e Rules) ---
+        let calculatedStatus = "Healthy";
+        let calculatedDisplayStatus = "Healthy";
+        let conditionsToRemove = [];
+        let conditionsToAdd = [];
+
+        // Read CON score again in case it was just changed
+        conScore = parseInt(character.conScore, 10);
+        validConScore = !isNaN(conScore) && conScore >= 1 ? conScore : 10;
+        deathThreshold = -Math.abs(validConScore);
+
+        if (character.hpCurrent > 0) {
+             calculatedStatus = (character.hpCurrent / character.hpMax) <= 0.5 ? 'Injured' : 'Healthy';
+             calculatedDisplayStatus = calculatedStatus; // Health status is the base display
+
+             // If recovering, remove Unconscious/Helpless unless petrified/paralyzed
+             if (!character.pf1eConditions.includes('Petrified') && !character.pf1eConditions.includes('Paralyzed')) {
+                if (character.pf1eConditions.includes('Unconscious')) conditionsToRemove.push('Unconscious');
+                if (character.pf1eConditions.includes('Helpless')) conditionsToRemove.push('Helpless');
+             }
+
+             if (previousStatus === 'Disabled' || previousStatus === 'Dying') {
+                  if (character.status !== 'Dead') console.log(`${character.name} is no longer Disabled or Dying.`);
+             }
+
+        } else if (character.hpCurrent === 0) {
+            calculatedStatus = 'Disabled';
+            calculatedDisplayStatus = 'Disabled (0 HP)';
+            // Remove Unconscious/Helpless if recovering from Dying (unless Petrified/Paralyzed)
+             if (!character.pf1eConditions.includes('Petrified') && !character.pf1eConditions.includes('Paralyzed')) {
+                if (character.pf1eConditions.includes('Unconscious')) conditionsToRemove.push('Unconscious');
+                if (character.pf1eConditions.includes('Helpless')) conditionsToRemove.push('Helpless');
+             }
+
+            if (previousHp < 0 && previousStatus !== 'Dead') {
+                 console.log(`${character.name} stabilized at 0 HP.`);
+            }
+        } else { // HP is Negative
+             if (character.hpCurrent >= deathThreshold) {
+                  calculatedStatus = 'Dying';
+                  calculatedDisplayStatus = `Dying (${character.hpCurrent} HP)`;
+                  // Dying implies Unconscious and Helpless
+                   if (!character.pf1eConditions.includes('Unconscious')) conditionsToAdd.push('Unconscious');
+                   if (!character.pf1eConditions.includes('Helpless')) conditionsToAdd.push('Helpless');
+
+                  if (previousHp >= 0 && previousStatus !== 'Dead') {
+                     console.log(`${character.name} is now Dying!`);
+                  }
+             } else {
+                  // HP is below death threshold
+                  if (character.status !== 'Dead') {
+                     updateStatus(charId, 'setDead', true);
+                  }
+                  return; // Stop processing
+             }
+        }
+
+        // Apply condition changes determined during status calculation
+         character.pf1eConditions = character.pf1eConditions.filter(c => !conditionsToRemove.includes(c) && c !== 'Dead');
+         conditionsToAdd.forEach(c => {
+             if (!character.pf1eConditions.includes(c)) {
+                 character.pf1eConditions.push(c);
+             }
+         });
+
+        // --- Apply Final Statuses ---
+        // Update status only if it actually changed
+        if (character.status !== calculatedStatus || character.displayStatus !== calculatedDisplayStatus) {
+             character.status = calculatedStatus;
+             character.displayStatus = calculatedDisplayStatus;
+        }
+
+        // --- Update UI ---
+        if (needsDashboardSort) {
+            renderDashboard();
+        } else {
+             renderCharacterCard(charId);
+        }
+    }
+
+
+    // --- Initial Render ---
+    document.addEventListener('DOMContentLoaded', renderDashboard);
+
+</script>
+
+</body>
+</html>
